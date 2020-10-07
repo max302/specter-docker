@@ -13,12 +13,11 @@ WORKDIR /usr/src/app
 VOLUME /root/.specter
 VOLUME /data
 
-#COPY requirements.txt ./
+COPY config.json /root/.specter/
+
 RUN apt-get update && apt-get upgrade -y wget libusb-1.0-0
 RUN wget https://github.com/cryptoadvance/specter-desktop/releases/download/v0.8.1/specterd-v0.8.1-x86_64-linux-gnu.tar.gz
 RUN tar -xzvf specterd-v0.8.1-x86_64-linux-gnu.tar.gz
-
-COPY . .
 
 EXPOSE 25441/TCP
 
