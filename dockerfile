@@ -1,24 +1,62 @@
-FROM debian:buster-slim
-LABEL version="0.8.1"
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+
+ARG VERSION=v0.8.2-pre1
+ARG REPO=https://github.com/cryptoadvance/specter-desktop
+ARG USER=specter
+ARG DIR=/data/
+
+FROM python:3.8.5-slim-buster AS builder
+
+ARG VERSION
+ARG REPO
+
+RUN apt update && apt install -y git build-essential libusb-1.0-0-dev libudev-dev libffi-dev libssl-dev
+
+WORKDIR /
+
+RUN git clone $REPO
+
+WORKDIR /specter-desktop
+
+RUN git checkout $VERSION
+RUN sed -i "s/vx.y.z-get-replaced-by-release-script/${VERSION}/g; " setup.py
+RUN pip3 install .
 
 
-ENV BITCOIN_DATA /data
-ENV SPECTER_DATA /root/.specter
-ENV SPECTER_VERSION 0.8.1
-ENV LC_ALL=C.UTF-8
-ENV LANG=C.UTF-8
+FROM python:3.8.5-slim-buster as final
 
-WORKDIR /usr/src/app
+ARG USER
+ARG DIR
 
-VOLUME /root/.specter
-VOLUME /data
+LABEL maintainer="nolim1t (hello@nolim1t.co)"
 
-COPY config.json /root/.specter/
+RUN apt update && apt install -y libusb-1.0-0-dev libudev-dev
 
-RUN apt-get update && apt-get upgrade -y wget libusb-1.0-0
-RUN wget https://github.com/cryptoadvance/specter-desktop/releases/download/v0.8.1/specterd-v0.8.1-x86_64-linux-gnu.tar.gz
-RUN tar -xzvf specterd-v0.8.1-x86_64-linux-gnu.tar.gz
+# NOTE: Default GID == UID == 1000
+RUN adduser --disabled-password \
+            --home "$DIR" \
+            --gecos "" \
+            "$USER"
 
-EXPOSE 25441/TCP
+# Set user
+USER $USER
 
-CMD /usr/src/app/release/specterd-v0.8.1-x86_64-linux-gnu/specterd --host 0.0.0.0
+# Make config directory
+RUN mkdir -p "$DIR/.specter/"
+
+
+# Copy over python stuff
+COPY --from=builder /usr/local/lib/python3.8 /usr/local/lib/python3.8
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+
+# Expose ports
+EXPOSE 25441 25442 25443
+
+ENTRYPOINT ["/usr/local/bin/python3", "-m", "cryptoadvance.specter", "server"]
